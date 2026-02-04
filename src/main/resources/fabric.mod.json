@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "commandguibuttons",
+  "version": "1.2.2",
+  "name": "CmdDeck",
+  "description": "A customizable GUI for command macros.",
+  "authors": [
+    "o0h"
+  ],
+  "contact": {
+    "sources": "https://github.com/o0hno/MacroGrid"
+  },
+  "license": "GPL-3.0",
+  "icon": "icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.commandguibuttons.gui.CommandGUIButtons"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": "*",
+    "libgui": ">=15.1.0"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}
