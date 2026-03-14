@@ -15,4 +15,4 @@ Simple command button mod for Minecraft 1.21.11 (Fabric).
 ## Requirements
 To run the mod in-game, you need:
 * Fabric API
-* LibGui (optional)
+* owo-lib
