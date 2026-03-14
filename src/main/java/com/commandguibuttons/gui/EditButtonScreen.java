@@ -105,11 +105,9 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
         FlowLayout panel = UIContainers.verticalFlow(Sizing.fixed(320), Sizing.content());
         panel.surface(Surface.flat(0xB0000000)).padding(Insets.of(6));
 
-
         panel.child(UIComponents.label(Text.literal(isAddMode ? "Add New Button" : "Edit Button")
                         .formatted(Formatting.YELLOW, Formatting.BOLD))
                 .margins(Insets.bottom(4)));
-
 
         panel.child(UIComponents.label(Text.literal("Button Name:")).margins(Insets.bottom(2)));
         nameField = UIComponents.textBox(Sizing.fill(100));
@@ -119,58 +117,54 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
         if (existingButton != null) nameField.setText(existingButton.getName());
         panel.child(nameField.margins(Insets.bottom(4)));
 
-
         FlowLayout colorIconRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        colorIconRow.gap(4).margins(Insets.bottom(4));
+        colorIconRow.gap(2).margins(Insets.bottom(4));
 
         colorButton = UIComponents.button(Text.literal("Color: " + currentColor.getDisplayName()), b -> cycleColor());
-        colorButton.horizontalSizing(Sizing.fill(50));
+        colorButton.horizontalSizing(Sizing.fixed(150));
 
         ButtonComponent iconButton = UIComponents.button(Text.literal("Icon: " + iconLabel()), b -> openIconPicker());
-        iconButton.horizontalSizing(Sizing.fill(50));
+        iconButton.horizontalSizing(Sizing.fixed(150));
 
         colorIconRow.child(colorButton).child(iconButton);
         panel.child(colorIconRow);
 
-
         panel.child(UIComponents.label(Text.literal("Actions:")).margins(Insets.bottom(2)));
-
 
         commandListLayout = UIContainers.verticalFlow(Sizing.fill(100), Sizing.content());
         var scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.fixed(100), commandListLayout);
         scroll.margins(Insets.bottom(4));
         panel.child(scroll);
 
-
         FlowLayout addCmdRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        addCmdRow.gap(4).margins(Insets.bottom(4));
+        addCmdRow.gap(2).margins(Insets.bottom(4));
 
         ButtonComponent addCmdBtn = UIComponents.button(Text.literal("+ Command"), b -> {
             commandWidgets.add(new CommandWidget("/", ButtonData.CommandType.COMMAND));
             rebuildCommandList();
             needsRefresh = true;
         });
-        addCmdBtn.horizontalSizing(Sizing.fill(50));
+        addCmdBtn.horizontalSizing(Sizing.fixed(150));
 
         ButtonComponent addMsgBtn = UIComponents.button(Text.literal("+ Message"), b -> {
             commandWidgets.add(new CommandWidget("", ButtonData.CommandType.MESSAGE));
             rebuildCommandList();
             needsRefresh = true;
         });
-        addMsgBtn.horizontalSizing(Sizing.fill(50));
+        addMsgBtn.horizontalSizing(Sizing.fixed(150));
 
         addCmdRow.child(addCmdBtn).child(addMsgBtn);
         panel.child(addCmdRow);
 
 
         FlowLayout saveRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        saveRow.gap(4);
+        saveRow.gap(2);
 
         ButtonComponent saveBtn = UIComponents.button(Text.literal("Save"), b -> saveAndClose());
-        saveBtn.horizontalSizing(Sizing.fill(50));
+        saveBtn.horizontalSizing(Sizing.fixed(150));
 
         ButtonComponent cancelBtn = UIComponents.button(Text.literal("Cancel"), b -> close());
-        cancelBtn.horizontalSizing(Sizing.fill(50));
+        cancelBtn.horizontalSizing(Sizing.fixed(150));
 
         saveRow.child(saveBtn).child(cancelBtn);
         panel.child(saveRow);
@@ -189,7 +183,6 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
 
             FlowLayout row = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
             row.gap(2).margins(Insets.bottom(2));
-
 
             ButtonComponent typeBtn = UIComponents.button(
                     Text.literal(cw.type == ButtonData.CommandType.COMMAND ? "§9CMD" : "§aMSG"),
@@ -281,7 +274,6 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
         close();
     }
 
-
     private static class CommandWidget {
         String text;
         ButtonData.CommandType type;
@@ -291,7 +283,6 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
             this.text = text;
             this.type = type;
         }
-
 
         TextBoxComponent createField() {
             textField = UIComponents.textBox(Sizing.fixed(180));

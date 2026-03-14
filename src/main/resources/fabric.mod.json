@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "commandguibuttons",
-  "version": "3.0",
+  "version": "3.1",
   "name": "CmdDeck",
   "description": "A customizable GUI for command macros.",
   "authors": [
