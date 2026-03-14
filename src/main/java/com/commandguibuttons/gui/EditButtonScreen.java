@@ -1,194 +1,307 @@
 package com.commandguibuttons.gui;
 
 import com.commandguibuttons.config.ButtonData;
-import io.github.cottonmc.cotton.gui.client.CottonClientScreen;
-import io.github.cottonmc.cotton.gui.client.LightweightGuiDescription;
-import io.github.cottonmc.cotton.gui.widget.*;
-import io.github.cottonmc.cotton.gui.widget.data.Insets;
+import io.wispforest.owo.ui.base.BaseOwoScreen;
+import io.wispforest.owo.ui.component.ButtonComponent;
+import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.TextBoxComponent;
+import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.core.*;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import org.jetbrains.annotations.NotNull;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class EditButtonScreen extends CottonClientScreen {
+public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
+
+    private final ButtonData existingButton;
+    private final Consumer<ButtonData> onSave;
+    private final boolean isAddMode;
+
+    private ButtonData.ButtonColor currentColor;
+    private ButtonData.ButtonIcon currentIcon;
+
+    private TextBoxComponent nameField;
+    private ButtonComponent colorButton;
+    private FlowLayout commandListLayout;
+
+    private final List<CommandWidget> commandWidgets = new ArrayList<>();
 
     public EditButtonScreen(ButtonData button, Consumer<ButtonData> onSave) {
         this(button, onSave, button == null);
     }
 
-    private EditButtonScreen(ButtonData button, Consumer<ButtonData> onSave, boolean isAddMode) {
-        super(new EditButtonGuiDescription(button, onSave, isAddMode));
+    public EditButtonScreen(ButtonData button, Consumer<ButtonData> onSave, boolean isAddMode) {
+        this.existingButton = button;
+        this.onSave = onSave;
+        this.isAddMode = isAddMode;
+
+        if (button != null) {
+            currentColor = button.getColor();
+            currentIcon = button.getIcon();
+            for (ButtonData.CommandEntry cmd : button.getCommands()) {
+                commandWidgets.add(new CommandWidget(cmd.getCommand(), cmd.getType()));
+            }
+        } else {
+            currentColor = ButtonData.ButtonColor.DEFAULT;
+            currentIcon = ButtonData.ButtonIcon.NONE;
+        }
     }
 
-    private static class EditButtonGuiDescription extends LightweightGuiDescription {
-        private WGridPanel root;
-        private WTextField nameField;
-        private List<CommandWidget> commandWidgets;
-        private WBox commandListBox;
-        private WScrollPanel commandScrollPanel;
+    private boolean firstTick = true;
+    private boolean needsRefresh = false;
 
-        private Consumer<ButtonData> onSave;
-        private final boolean isAddMode;
-
-        private ButtonData.ButtonColor currentColor = ButtonData.ButtonColor.DEFAULT;
-        private ButtonData.ButtonIcon currentIcon = ButtonData.ButtonIcon.NONE;
-
-        private static class CommandWidget {
-            WTextField textField;
-            ButtonData.CommandType type;
-            CommandWidget(String text, ButtonData.CommandType type) {
-                this.textField = new WTextField();
-                this.textField.setText(text);
-                this.textField.setMaxLength(256);
-                this.type = type;
+    @Override
+    public void tick() {
+        super.tick();
+        if (firstTick) {
+            firstTick = false;
+            needsRefresh = true;
+            String correctName = existingButton != null ? existingButton.getName() : "";
+            if (nameField != null) {
+                nameField.setText(correctName);
+                nameField.setSuggestion(correctName.isEmpty() ? "Enter button name..." : "");
             }
-            String getText() { return textField.getText(); }
-            ButtonData.CommandType getType() { return type; }
         }
-
-        public EditButtonGuiDescription(ButtonData button, Consumer<ButtonData> onSave, boolean isAddMode) {
-            this.onSave = onSave;
-            this.isAddMode = isAddMode;
-
-            root = new WGridPanel();
-            setRootPanel(root);
-            root.setSize(360, 300);
-            root.setInsets(Insets.ROOT_PANEL);
-
-            commandWidgets = new ArrayList<>();
-            if (button != null) {
-                for (ButtonData.CommandEntry cmd : button.getCommands()) {
-                    commandWidgets.add(new CommandWidget(cmd.getCommand(), cmd.getType()));
+        if (needsRefresh) {
+            needsRefresh = false;
+            for (CommandWidget cw : commandWidgets) {
+                if (cw.textField != null) {
+                    String t = cw.text;
+                    cw.textField.setText("");
+                    cw.textField.setText(t);
                 }
-                currentColor = button.getColor();
-                currentIcon = button.getIcon();
             }
+        }
+    }
 
-            root.add(new WLabel(Text.literal(isAddMode ? "Add New Button" : "Edit Button")), 0, 0, 20, 1);
-            root.add(new WLabel(Text.literal("Button Name:")), 0, 1, 20, 1);
-            nameField = new WTextField();
-            nameField.setMaxLength(100);
-            nameField.setSuggestion(Text.literal("Enter button name..."));
-            if (button != null && button.getName() != null) nameField.setText(button.getName());
-            root.add(nameField, 0, 2, 20, 1);
+    @Override
+    protected void init() {
+        super.init();
+        String correctName = existingButton != null ? existingButton.getName() : "";
+        if (nameField != null) {
+            nameField.setText(correctName);
+            nameField.setSuggestion(correctName.isEmpty() ? "Enter button name..." : "");
+        }
+    }
 
-            root.add(new WLabel(Text.literal("Color:")), 0, 4, 2, 1);
-            WButton colorButton = new WButton(Text.literal(currentColor.getDisplayName()));
-            colorButton.setOnClick(() -> {
-                ButtonData.ButtonColor[] colors = ButtonData.ButtonColor.values();
-                int currentIndex = Arrays.asList(colors).indexOf(currentColor);
-                currentColor = colors[(currentIndex + 1) % colors.length];
-                colorButton.setLabel(Text.literal(currentColor.getDisplayName()));
-            });
-            root.add(colorButton, 2, 4, 7, 1);
+    @Override
+    protected @NotNull OwoUIAdapter<FlowLayout> createAdapter() {
+        return OwoUIAdapter.create(this, UIContainers::verticalFlow);
+    }
 
-            root.add(new WLabel(Text.literal("Icon:")), 10, 4, 2, 1);
-            String iconText = currentIcon == ButtonData.ButtonIcon.NONE ? "None" : currentIcon.getSymbol() + " " + currentIcon.getName();
-            WButton iconButton = new WButton(Text.literal(iconText));
+    @Override
+    protected void build(FlowLayout root) {
+        root.surface(Surface.VANILLA_TRANSLUCENT)
+                .horizontalAlignment(HorizontalAlignment.CENTER)
+                .verticalAlignment(VerticalAlignment.CENTER);
 
-            iconButton.setOnClick(() -> {
-                ButtonData currentData = buildButtonData();
-                MinecraftClient.getInstance().setScreen(new IconSelectionScreen(
-                        (selectedIcon) -> {
-                            currentData.setIcon(selectedIcon);
-                            MinecraftClient.getInstance().setScreen(new EditButtonScreen(currentData, onSave, this.isAddMode));
-                        },
-                        () -> {
-                            MinecraftClient.getInstance().setScreen(new EditButtonScreen(currentData, onSave, this.isAddMode));
-                        }
-                ));
-            });
-            root.add(iconButton, 12, 4, 8, 1);
+        FlowLayout panel = UIContainers.verticalFlow(Sizing.fixed(320), Sizing.content());
+        panel.surface(Surface.flat(0xB0000000)).padding(Insets.of(6));
 
-            root.add(new WLabel(Text.literal("Actions:")), 0, 5, 20, 1);
 
-            commandListBox = new WBox(io.github.cottonmc.cotton.gui.widget.data.Axis.VERTICAL);
+        panel.child(UIComponents.label(Text.literal(isAddMode ? "Add New Button" : "Edit Button")
+                        .formatted(Formatting.YELLOW, Formatting.BOLD))
+                .margins(Insets.bottom(4)));
+
+
+        panel.child(UIComponents.label(Text.literal("Button Name:")).margins(Insets.bottom(2)));
+        nameField = UIComponents.textBox(Sizing.fill(100));
+        nameField.setMaxLength(100);
+        nameField.setSuggestion("Enter button name...");
+        nameField.onChanged().subscribe(s -> nameField.setSuggestion(s.isEmpty() ? "Enter button name..." : ""));
+        if (existingButton != null) nameField.setText(existingButton.getName());
+        panel.child(nameField.margins(Insets.bottom(4)));
+
+
+        FlowLayout colorIconRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        colorIconRow.gap(4).margins(Insets.bottom(4));
+
+        colorButton = UIComponents.button(Text.literal("Color: " + currentColor.getDisplayName()), b -> cycleColor());
+        colorButton.horizontalSizing(Sizing.fill(50));
+
+        ButtonComponent iconButton = UIComponents.button(Text.literal("Icon: " + iconLabel()), b -> openIconPicker());
+        iconButton.horizontalSizing(Sizing.fill(50));
+
+        colorIconRow.child(colorButton).child(iconButton);
+        panel.child(colorIconRow);
+
+
+        panel.child(UIComponents.label(Text.literal("Actions:")).margins(Insets.bottom(2)));
+
+
+        commandListLayout = UIContainers.verticalFlow(Sizing.fill(100), Sizing.content());
+        var scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.fixed(100), commandListLayout);
+        scroll.margins(Insets.bottom(4));
+        panel.child(scroll);
+
+
+        FlowLayout addCmdRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        addCmdRow.gap(4).margins(Insets.bottom(4));
+
+        ButtonComponent addCmdBtn = UIComponents.button(Text.literal("+ Command"), b -> {
+            commandWidgets.add(new CommandWidget("/", ButtonData.CommandType.COMMAND));
             rebuildCommandList();
+            needsRefresh = true;
+        });
+        addCmdBtn.horizontalSizing(Sizing.fill(50));
 
-            WButton addCommandButton = new WButton(Text.literal("+ Command"));
-            addCommandButton.setOnClick(() -> {
-                commandWidgets.add(new CommandWidget("/", ButtonData.CommandType.COMMAND));
-                rebuildCommandList();
+        ButtonComponent addMsgBtn = UIComponents.button(Text.literal("+ Message"), b -> {
+            commandWidgets.add(new CommandWidget("", ButtonData.CommandType.MESSAGE));
+            rebuildCommandList();
+            needsRefresh = true;
+        });
+        addMsgBtn.horizontalSizing(Sizing.fill(50));
+
+        addCmdRow.child(addCmdBtn).child(addMsgBtn);
+        panel.child(addCmdRow);
+
+
+        FlowLayout saveRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        saveRow.gap(4);
+
+        ButtonComponent saveBtn = UIComponents.button(Text.literal("Save"), b -> saveAndClose());
+        saveBtn.horizontalSizing(Sizing.fill(50));
+
+        ButtonComponent cancelBtn = UIComponents.button(Text.literal("Cancel"), b -> close());
+        cancelBtn.horizontalSizing(Sizing.fill(50));
+
+        saveRow.child(saveBtn).child(cancelBtn);
+        panel.child(saveRow);
+
+        root.child(panel);
+        rebuildCommandList();
+    }
+
+    private void rebuildCommandList() {
+        if (commandListLayout == null) return;
+        commandListLayout.clearChildren();
+
+        for (int i = 0; i < commandWidgets.size(); i++) {
+            final int idx = i;
+            CommandWidget cw = commandWidgets.get(i);
+
+            FlowLayout row = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            row.gap(2).margins(Insets.bottom(2));
+
+
+            ButtonComponent typeBtn = UIComponents.button(
+                    Text.literal(cw.type == ButtonData.CommandType.COMMAND ? "§9CMD" : "§aMSG"),
+                    b -> {
+                        cw.type = (cw.type == ButtonData.CommandType.COMMAND)
+                                ? ButtonData.CommandType.MESSAGE
+                                : ButtonData.CommandType.COMMAND;
+                        rebuildCommandList();
+                    }
+            );
+            typeBtn.horizontalSizing(Sizing.fixed(34));
+            typeBtn.tooltip(Text.literal("Click to toggle CMD / MSG"));
+
+
+            ButtonComponent upBtn = UIComponents.button(Text.literal("↑"), b -> {
+                if (idx > 0) {
+                    CommandWidget tmp = commandWidgets.get(idx);
+                    commandWidgets.set(idx, commandWidgets.get(idx - 1));
+                    commandWidgets.set(idx - 1, tmp);
+                    rebuildCommandList();
+                    needsRefresh = true;
+                }
             });
-            root.add(addCommandButton, 0, 14, 10, 1);
+            upBtn.horizontalSizing(Sizing.fixed(16));
 
-            WButton addMessageButton = new WButton(Text.literal("+ Message"));
-            addMessageButton.setOnClick(() -> {
-                commandWidgets.add(new CommandWidget("", ButtonData.CommandType.MESSAGE));
-                rebuildCommandList();
+            ButtonComponent downBtn = UIComponents.button(Text.literal("↓"), b -> {
+                if (idx < commandWidgets.size() - 1) {
+                    CommandWidget tmp = commandWidgets.get(idx);
+                    commandWidgets.set(idx, commandWidgets.get(idx + 1));
+                    commandWidgets.set(idx + 1, tmp);
+                    rebuildCommandList();
+                    needsRefresh = true;
+                }
             });
-            root.add(addMessageButton, 10, 14, 10, 1);
+            downBtn.horizontalSizing(Sizing.fixed(16));
 
-            WButton saveButton = new WButton(Text.literal("Save"));
-            saveButton.setOnClick(() -> saveAndClose());
-            root.add(saveButton, 0, 15, 10, 1);
+            ButtonComponent delBtn = UIComponents.button(Text.literal("§cX"), b -> {
+                commandWidgets.remove(idx);
+                rebuildCommandList();
+                needsRefresh = true;
+            });
+            delBtn.horizontalSizing(Sizing.fixed(16));
 
-            WButton cancelButton = new WButton(Text.literal("Cancel"));
-            cancelButton.setOnClick(() -> MinecraftClient.getInstance().setScreen(null));
-            root.add(cancelButton, 10, 15, 10, 1);
+            TextBoxComponent field = cw.createField();
+            row.child(typeBtn).child(field).child(upBtn).child(downBtn).child(delBtn);
+            commandListLayout.child(row);
 
-            root.validate(this);
+        }
+    }
+
+    private void cycleColor() {
+        ButtonData.ButtonColor[] colors = ButtonData.ButtonColor.values();
+        int cur = Arrays.asList(colors).indexOf(currentColor);
+        currentColor = colors[(cur + 1) % colors.length];
+        if (colorButton != null) colorButton.setMessage(Text.literal("Color: " + currentColor.getDisplayName()));
+    }
+
+    private void openIconPicker() {
+        ButtonData current = buildButtonData();
+        MinecraftClient.getInstance().setScreen(new IconSelectionScreen(
+                icon -> {
+                    current.setIcon(icon);
+                    MinecraftClient.getInstance().setScreen(new EditButtonScreen(current, onSave, isAddMode));
+                },
+                () -> MinecraftClient.getInstance().setScreen(new EditButtonScreen(current, onSave, isAddMode))
+        ));
+    }
+
+    private String iconLabel() {
+        if (currentIcon == null || currentIcon == ButtonData.ButtonIcon.NONE) return "None";
+        return currentIcon.getSymbol() + " " + currentIcon.getName();
+    }
+
+    private ButtonData buildButtonData() {
+        String name = nameField != null ? nameField.getText() : (existingButton != null ? existingButton.getName() : "");
+        List<ButtonData.CommandEntry> cmds = new ArrayList<>();
+        for (CommandWidget w : commandWidgets) {
+            cmds.add(new ButtonData.CommandEntry(w.getText(), w.getType()));
+        }
+        ButtonData data = new ButtonData(name, cmds);
+        data.setColor(currentColor);
+        data.setIcon(currentIcon);
+        return data;
+    }
+
+    private void saveAndClose() {
+        if (nameField == null || nameField.getText().trim().isEmpty()) return;
+        onSave.accept(buildButtonData());
+        close();
+    }
+
+
+    private static class CommandWidget {
+        String text;
+        ButtonData.CommandType type;
+        TextBoxComponent textField;
+
+        CommandWidget(String text, ButtonData.CommandType type) {
+            this.text = text;
+            this.type = type;
         }
 
-        private ButtonData buildButtonData() {
-            String name = nameField.getText();
-            List<ButtonData.CommandEntry> cmds = new ArrayList<>();
-            for (CommandWidget w : commandWidgets) {
-                cmds.add(new ButtonData.CommandEntry(w.getText(), w.getType()));
-            }
-            ButtonData data = new ButtonData(name, cmds);
-            data.setColor(currentColor);
-            data.setIcon(currentIcon);
-            return data;
+
+        TextBoxComponent createField() {
+            textField = UIComponents.textBox(Sizing.fixed(180));
+            textField.setText(text);
+            textField.setMaxLength(256);
+            textField.onChanged().subscribe(s -> text = s);
+            return textField;
         }
 
-        private void rebuildCommandList() {
-            commandListBox = new WBox(io.github.cottonmc.cotton.gui.widget.data.Axis.VERTICAL);
-            for (int i = 0; i < commandWidgets.size(); i++) {
-                final int index = i;
-                CommandWidget cmdWidget = commandWidgets.get(i);
-                WGridPanel panel = new WGridPanel();
-
-                String typeLabel = cmdWidget.type == ButtonData.CommandType.COMMAND ? "CMD" : "MSG";
-                panel.add(new WLabel(Text.literal(typeLabel)), 0, 0, 2, 1);
-                panel.add(cmdWidget.textField, 2, 0, 10, 1);
-
-                WButton upBtn = new WButton(Text.literal("↑"));
-                upBtn.setOnClick(() -> moveUp(index));
-                panel.add(upBtn, 12, 0, 2, 1);
-
-                WButton downBtn = new WButton(Text.literal("↓"));
-                downBtn.setOnClick(() -> moveDown(index));
-                panel.add(downBtn, 14, 0, 2, 1);
-
-                WButton delBtn = new WButton(Text.literal("X"));
-                delBtn.setOnClick(() -> deleteCommand(index));
-                panel.add(delBtn, 16, 0, 2, 1);
-
-                commandListBox.add(panel);
-            }
-
-            if (commandScrollPanel != null) {
-                root.remove(commandScrollPanel);
-            }
-
-            commandScrollPanel = new WScrollPanel(commandListBox);
-            root.add(commandScrollPanel, 0, 6, 20, 7);
-            root.validate(this);
-        }
-
-        private void moveUp(int index) { if (index > 0) { CommandWidget temp = commandWidgets.get(index); commandWidgets.set(index, commandWidgets.get(index - 1)); commandWidgets.set(index - 1, temp); rebuildCommandList(); } }
-        private void moveDown(int index) { if (index < commandWidgets.size() - 1) { CommandWidget temp = commandWidgets.get(index); commandWidgets.set(index, commandWidgets.get(index + 1)); commandWidgets.set(index + 1, temp); rebuildCommandList(); } }
-        private void deleteCommand(int index) { if (index >= 0 && index < commandWidgets.size()) { commandWidgets.remove(index); rebuildCommandList(); } }
-
-        private void saveAndClose() {
-            String buttonName = nameField.getText().trim();
-            if (buttonName.isEmpty()) return;
-            ButtonData newButton = buildButtonData();
-            onSave.accept(newButton);
-            MinecraftClient.getInstance().setScreen(null);
-        }
+        String getText() { return textField != null ? textField.getText() : text; }
+        ButtonData.CommandType getType() { return type; }
     }
 }
