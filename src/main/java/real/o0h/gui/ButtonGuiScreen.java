@@ -36,9 +36,15 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
     private TextBoxComponent searchBox;
     private LabelComponent countLabel;
 
-    private ButtonComponent editModeBtn;
-    private ButtonComponent moveModeBtn;
-    private ButtonComponent deleteModeBtn;
+    private FlowLayout editModeBtn, moveModeBtn, deleteModeBtn;
+    private LabelComponent editModeLbl, moveModeLbl, deleteModeLbl;
+
+    // Profile tab bar (ported from 3.4)
+    private FlowLayout tabBarLayout;
+    private boolean renamingProfile = false;
+    private boolean pendingDeleteProfile = false;
+    private TextBoxComponent renameField;
+    private boolean renameFocusPending = false;
 
     private boolean firstTick = true;
 
@@ -51,6 +57,12 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
             if (uiAdapter != null) uiAdapter.rootComponent
                 .focusHandler()
                 .focus(null, UIComponent.FocusSource.MOUSE_CLICK);
+        }
+        if (renameFocusPending && renameField != null && uiAdapter != null) {
+            renameFocusPending = false;
+            uiAdapter.rootComponent
+                .focusHandler()
+                .focus(renameField, UIComponent.FocusSource.KEYBOARD_CYCLE);
         }
     }
 
@@ -70,7 +82,7 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
 
     @Override
     protected void build(FlowLayout root) {
-        root.surface(Surface.VANILLA_TRANSLUCENT)
+        root.surface(Surface.flat(UITheme.COL_DIM))
             .horizontalAlignment(HorizontalAlignment.CENTER)
             .verticalAlignment(VerticalAlignment.CENTER);
 
@@ -81,7 +93,7 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
             Sizing.fixed(340),
             Sizing.content()
         );
-        panel.surface(Surface.flat(0xC0000000)).padding(Insets.of(6));
+        panel.surface(UITheme.panel()).padding(Insets.of(8));
 
         FlowLayout titleRow = UIContainers.horizontalFlow(
             Sizing.fill(100),
@@ -92,39 +104,53 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
             .margins(Insets.bottom(6));
         titleRow.child(
             UIComponents.label(
-                Component.literal("MacroGrid").withStyle(
-                    ChatFormatting.YELLOW,
-                    ChatFormatting.BOLD
-                )
-            )
+                Component.literal("MacroGrid").withStyle(ChatFormatting.BOLD)
+            ).color(Color.ofArgb(UITheme.COL_TEXT))
         );
-        countLabel = UIComponents.label(
-            Component.literal("  (0)").withStyle(ChatFormatting.DARK_GRAY)
-        );
+        countLabel = UIComponents.label(Component.literal("  (0)"));
+        countLabel.color(Color.ofArgb(UITheme.COL_TEXT_DIM));
         titleRow.child(countLabel);
         panel.child(titleRow);
 
-        FlowLayout searchRow = UIContainers.horizontalFlow(
+        // Profile tab bar (ported from 3.4): switch / rename / delete /
+        // create profiles. The active profile's buttons are shown below.
+        tabBarLayout = UIContainers.horizontalFlow(
             Sizing.fill(100),
             Sizing.content()
         );
+        tabBarLayout.verticalAlignment(VerticalAlignment.CENTER);
+tabBarLayout.gap(2);
+tabBarLayout.margins(Insets.bottom(6));
+        panel.child(tabBarLayout);
+        rebuildTabs();
+
+        // Search row styled like 3.4: dark strip with a top hairline,
+        // borderless field with light text.
+        FlowLayout searchRow = UIContainers.horizontalFlow(
+            Sizing.fill(100),
+            Sizing.fixed(16)
+        );
+        searchRow.surface(UITheme.inputStrip());
+        searchRow
+            .verticalAlignment(VerticalAlignment.CENTER)
+            .margins(Insets.bottom(8));
         searchBox = UIComponents.textBox(Sizing.fill(90));
+        searchBox.setBordered(false);
+        searchBox.setTextColor(UITheme.COL_TEXT);
         searchBox.setMaxLength(100);
         searchBox.setSuggestion("Search...");
         searchBox.onChanged().subscribe(s -> {
             searchBox.setSuggestion(s.isEmpty() ? "Search..." : "");
             rebuildGrid();
         });
-        ButtonComponent clearBtn = UIComponents.button(
-            Component.literal("X"),
-            b -> searchBox.setValue("")
+        FlowLayout clearBtn = makeCard(
+            Component.literal("✕"), UITheme.COL_ACCENT_DIM, false,
+            18, 16, () -> searchBox.setValue(""), null
         );
-        clearBtn.horizontalSizing(Sizing.fixed(18));
         searchRow
             .child(searchBox)
             .child(clearBtn)
-            .gap(2)
-            .margins(Insets.bottom(6));
+            .gap(2);
         panel.child(searchRow);
 
         buttonGridLayout = UIContainers.verticalFlow(
@@ -171,34 +197,43 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
         );
         bar.gap(4);
 
-        ButtonComponent addBtn = UIComponents.button(
-            Component.literal("§a+ Add"),
-            b -> openAddScreen()
+        // Pill-style toolbar (3.4 look): translucent fill, accent text,
+        // accent top line + tinted fill while active. Built from FlowLayout
+        // containers because owo leaf buttons cannot take custom surfaces.
+        FlowLayout addBtn = makePill(
+            Component.literal(UITheme.fmt(UITheme.COL_ACCENT) + "+ Add"),
+            UITheme.COL_ACCENT, UITheme.COL_ACCENT_DIM, false,
+            130, this::openAddScreen
         );
-        addBtn.horizontalSizing(Sizing.fixed(130));
 
-        editModeBtn = UIComponents.button(Component.literal("§7✎ Edit"), b ->
-            setMode(Mode.EDIT)
+        editModeBtn = makePill(
+            Component.literal(UITheme.fmt(UITheme.COL_WARN) + "✎ Edit"),
+            UITheme.COL_WARN, UITheme.COL_WARN_DIM, false,
+            62, () -> setMode(Mode.EDIT)
         );
-        editModeBtn.horizontalSizing(Sizing.fixed(62));
+        editModeLbl = (LabelComponent) editModeBtn.children().get(0);
         editModeBtn.tooltip(
             Component.literal("Edit mode: click a button to edit it")
         );
 
-        moveModeBtn = UIComponents.button(Component.literal("§7⇄ Move"), b ->
-            setMode(Mode.MOVE)
+        moveModeBtn = makePill(
+            Component.literal(UITheme.fmt(UITheme.COL_MOVE) + "⇄ Move"),
+            UITheme.COL_MOVE, UITheme.COL_MOVE_DIM, false,
+            62, () -> setMode(Mode.MOVE)
         );
-        moveModeBtn.horizontalSizing(Sizing.fixed(62));
+        moveModeLbl = (LabelComponent) moveModeBtn.children().get(0);
         moveModeBtn.tooltip(
             Component.literal(
                 "Move mode: pick a button, then click where to swap it"
             )
         );
 
-        deleteModeBtn = UIComponents.button(Component.literal("§7✖ Del"), b ->
-            setMode(Mode.DELETE)
+        deleteModeBtn = makePill(
+            Component.literal(UITheme.fmt(UITheme.COL_DANGER) + "✖ Del"),
+            UITheme.COL_DANGER, UITheme.COL_DANGER_DIM, false,
+            62, () -> setMode(Mode.DELETE)
         );
-        deleteModeBtn.horizontalSizing(Sizing.fixed(62));
+        deleteModeLbl = (LabelComponent) deleteModeBtn.children().get(0);
         deleteModeBtn.tooltip(
             Component.literal(
                 "Delete mode: click a button to delete it (two clicks to confirm)"
@@ -236,15 +271,179 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private void updateModeButtons() {
-        if (editModeBtn != null) editModeBtn.setMessage(
-            Component.literal(mode == Mode.EDIT ? "§e✎ Edit" : "§7✎ Edit")
+        if (editModeBtn != null) {
+            boolean act = mode == Mode.EDIT;
+            editModeBtn.surface(UITheme.pill(UITheme.COL_WARN, UITheme.COL_WARN_DIM, act));
+            editModeLbl.text(Component.literal(
+                (act ? UITheme.fmt(UITheme.COL_WARN) : UITheme.fmt(UITheme.COL_TEXT_DIM)) + "✎ Edit"
+            ));
+        }
+        if (moveModeBtn != null) {
+            boolean act = mode == Mode.MOVE;
+            moveModeBtn.surface(UITheme.pill(UITheme.COL_MOVE, UITheme.COL_MOVE_DIM, act));
+            moveModeLbl.text(Component.literal(
+                (act ? UITheme.fmt(UITheme.COL_MOVE) : UITheme.fmt(UITheme.COL_TEXT_DIM)) + "⇄ Move"
+            ));
+        }
+        if (deleteModeBtn != null) {
+            boolean act = mode == Mode.DELETE;
+            deleteModeBtn.surface(UITheme.pill(UITheme.COL_DANGER, UITheme.COL_DANGER_DIM, act));
+            deleteModeLbl.text(Component.literal(
+                (act ? UITheme.fmt(UITheme.COL_DANGER) : UITheme.fmt(UITheme.COL_TEXT_DIM)) + "✖ Del"
+            ));
+        }
+    }
+
+    /**
+     * (Re)build the profile tab bar: tab pills for each profile, rename/delete
+     * icons on the active tab, a trailing "+" to create a new profile. While
+     * renaming, shows an inline name field with confirm/cancel icons instead.
+     */
+    private void rebuildTabs() {
+        if (tabBarLayout == null) return;
+        tabBarLayout.clearChildren();
+
+        List<String> names = ButtonManager.getProfileNames();
+        String current = ButtonManager.getCurrentProfile();
+
+        if (renamingProfile) {
+            FlowLayout editRow = UIContainers.horizontalFlow(
+                Sizing.fill(100),
+                Sizing.fixed(18)
+            );
+            editRow.surface(UITheme.inputStrip());
+            editRow.verticalAlignment(VerticalAlignment.CENTER);
+            renameField = UIComponents.textBox(Sizing.fill(100));
+            renameField.setBordered(false);
+            renameField.setTextColor(UITheme.COL_TEXT);
+            renameField.setMaxLength(24);
+            renameField.setValue(current);
+            renameField.setSuggestion("Profile name");
+            renameField.onChanged().subscribe(s ->
+                renameField.setSuggestion(s.isEmpty() ? "Profile name" : "")
+            );
+            editRow.child(renameField);
+            FlowLayout okBtn = makePill(
+                Component.literal(UITheme.fmt(UITheme.COL_ACCENT) + "✓"),
+                UITheme.COL_ACCENT, UITheme.COL_ACCENT_DIM, false,
+                18, this::commitRename
+            );
+            okBtn.tooltip(Component.literal("Confirm rename"));
+            FlowLayout cancelBtn = makePill(
+                Component.literal(UITheme.fmt(UITheme.COL_DANGER) + "✕"),
+                UITheme.COL_DANGER, UITheme.COL_DANGER_DIM, false,
+                18, () -> { renamingProfile = false; rebuildTabs(); }
+            );
+            cancelBtn.tooltip(Component.literal("Cancel rename"));
+            editRow.child(okBtn);
+            editRow.child(cancelBtn);
+            editRow.gap(2);
+            tabBarLayout.child(editRow);
+            renameFocusPending = true;
+            return;
+        }
+
+        for (String name : names) {
+            boolean active = name.equals(current);
+            FlowLayout tab = UIContainers.horizontalFlow(
+                Sizing.content(),
+                Sizing.fixed(18)
+            );
+            tab.surface(UITheme.tab(active));
+            tab.horizontalAlignment(HorizontalAlignment.CENTER);
+            tab.verticalAlignment(VerticalAlignment.CENTER);
+            tab.padding(Insets.horizontal(8));
+            LabelComponent lbl = UIComponents.label(Component.literal(name));
+            lbl.shadow(false);
+            lbl.color(Color.ofArgb(active ? UITheme.COL_TEXT : UITheme.COL_TEXT_DIM));
+            tab.child(lbl);
+            final String tabName = name;
+            tab.mouseDown().subscribe((click, doubled) -> {
+                if (click.button() == 0) {
+                    if (!tabName.equals(ButtonManager.getCurrentProfile())) {
+                        ButtonManager.setCurrentProfile(tabName);
+                        reopen();
+                    }
+                    return true;
+                }
+                return false;
+            });
+            tab.tooltip(Component.literal(
+                active ? "Current profile" : "Switch to " + tabName
+            ));
+            tabBarLayout.child(tab);
+
+            if (active) {
+                // Rename icon: edit the current profile's name.
+                FlowLayout renameIcon = makePill(
+                    Component.literal("✎"),
+                    UITheme.COL_TEXT_DIM, 0x18FFFFFF, false,
+                    14, () -> { renamingProfile = true; rebuildTabs(); }
+                );
+                renameIcon.tooltip(Component.literal("Rename profile"));
+                tabBarLayout.child(renameIcon);
+
+                // Delete icon, only when more than one profile exists.
+                if (names.size() > 1) {
+                    FlowLayout delIcon = makePill(
+                        Component.literal(
+                            pendingDeleteProfile
+                                ? UITheme.fmt(UITheme.COL_DANGER) + "✕"
+                                : "✕"
+                        ),
+                        UITheme.COL_DANGER, 0x18FFFFFF, pendingDeleteProfile,
+                        14, () -> {
+                            if (pendingDeleteProfile) {
+                                ButtonManager.deleteProfile(
+                                    ButtonManager.getCurrentProfile()
+                                );
+                                pendingDeleteProfile = false;
+                                reopen();
+                            } else {
+                                pendingDeleteProfile = true;
+                                rebuildTabs();
+                            }
+                        }
+                    );
+                    delIcon.tooltip(Component.literal(
+                        pendingDeleteProfile
+                            ? "Click again to confirm deletion"
+                            : "Delete profile"
+                    ));
+                    tabBarLayout.child(delIcon);
+                }
+            }
+        }
+
+        // Create-new-profile icon at the end of the bar.
+        FlowLayout addIcon = makePill(
+            Component.literal(UITheme.fmt(UITheme.COL_ACCENT) + "+"),
+            UITheme.COL_ACCENT, UITheme.COL_ACCENT_DIM, false,
+            14, () -> {
+                ButtonManager.createProfile(null);
+                reopen();
+            }
         );
-        if (moveModeBtn != null) moveModeBtn.setMessage(
-            Component.literal(mode == Mode.MOVE ? "§9⇄ Move" : "§7⇄ Move")
-        );
-        if (deleteModeBtn != null) deleteModeBtn.setMessage(
-            Component.literal(mode == Mode.DELETE ? "§c✖ Del" : "§7✖ Del")
-        );
+        addIcon.tooltip(Component.literal("Create new profile"));
+        tabBarLayout.child(addIcon);
+    }
+
+    /** Confirm the inline profile rename and reopen. */
+    private void commitRename() {
+        if (renameField == null) return;
+        String newName = renameField.getValue().trim();
+        if (!newName.isEmpty()) {
+            ButtonManager.renameProfile(
+                ButtonManager.getCurrentProfile(), newName
+            );
+        }
+        renamingProfile = false;
+        reopen();
+    }
+
+    /** Reopen the main screen after a profile operation. */
+    private void reopen() {
+        Minecraft.getInstance().setScreen(new ButtonGuiScreen());
     }
 
     private void rebuildGrid() {
@@ -272,12 +471,12 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
 
         if (list.isEmpty()) {
             String msg = search.isEmpty()
-                ? "No buttons yet! Press §a+ Add§7 to create one."
-                : "No results for \"§f" + search + "§7\"";
+                ? "No buttons yet! Press " + UITheme.fmt(UITheme.COL_ACCENT) + "+ Add" + UITheme.fmt(UITheme.COL_TEXT_DIM) + " to create one."
+                : "No results for \"" + UITheme.fmt(UITheme.COL_TEXT) + search + UITheme.fmt(UITheme.COL_TEXT_DIM) + "\"";
             buttonGridLayout.child(
                 UIComponents.label(
-                    Component.literal(msg).withStyle(ChatFormatting.DARK_GRAY)
-                ).margins(Insets.of(8))
+                    Component.literal(msg)
+                ).color(Color.ofArgb(UITheme.COL_TEXT_DIM)).margins(Insets.of(8))
             );
             return;
         }
@@ -293,12 +492,13 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
                 );
                 row.gap(2).margins(Insets.bottom(2));
             }
-            ButtonComponent btn = UIComponents.button(
+            FlowLayout btn = makeCard(
                 Component.literal(makeLabel(button)),
-                b -> handleClick(button)
+                cardAccent(button),
+                (mode == Mode.DELETE && pendingDelete == button)
+                    || (mode == Mode.MOVE && moveSource == button),
+                33, 22, () -> handleClick(button), makeTooltip(button)
             );
-            btn.horizontalSizing(Sizing.fill(33));
-            btn.tooltip(makeTooltip(button));
             row.child(btn);
             col++;
             if (col >= COLS) {
@@ -308,6 +508,63 @@ public class ButtonGuiScreen extends BaseOwoScreen<FlowLayout> {
             }
         }
         if (row != null) buttonGridLayout.child(row);
+    }
+
+    /** Left accent stripe color for a grid card, matching the 3.4 modes. */
+    private int cardAccent(ButtonData btn) {
+        return switch (mode) {
+            case DELETE -> UITheme.COL_DANGER;
+            case EDIT -> UITheme.COL_WARN;
+            case MOVE -> UITheme.COL_MOVE;
+            case NONE -> UITheme.COL_ACCENT_DIM;
+        };
+    }
+
+    /**
+     * Card-style clickable element: FlowLayout container + centered label,
+     * because owo leaf buttons cannot take custom surfaces. Left-click
+     * triggers onClick; optional tooltip lines.
+     */
+    private FlowLayout makeCard(
+        Component text, int accent, boolean emphasized,
+        int widthPct, int height, Runnable onClick, List<Component> tooltip
+    ) {
+        FlowLayout card = UIContainers.horizontalFlow(
+            Sizing.fill(widthPct), Sizing.fixed(height)
+        );
+        card.surface(UITheme.card(accent, emphasized));
+        card.horizontalAlignment(HorizontalAlignment.CENTER);
+        card.verticalAlignment(VerticalAlignment.CENTER);
+        LabelComponent lbl = UIComponents.label(text);
+        lbl.shadow(false);
+        card.child(lbl);
+        card.mouseDown().subscribe((click, doubled) -> {
+            if (click.button() == 0) { onClick.run(); return true; }
+            return false;
+        });
+        if (tooltip != null) card.tooltip(tooltip);
+        return card;
+    }
+
+    /** Pill-style clickable element for the toolbar (see makeCard). */
+    private FlowLayout makePill(
+        Component text, int accent, int accentDim, boolean active,
+        int width, Runnable onClick
+    ) {
+        FlowLayout pill = UIContainers.horizontalFlow(
+            Sizing.fixed(width), Sizing.fixed(18)
+        );
+        pill.surface(UITheme.pill(accent, accentDim, active));
+        pill.horizontalAlignment(HorizontalAlignment.CENTER);
+        pill.verticalAlignment(VerticalAlignment.CENTER);
+        LabelComponent lbl = UIComponents.label(text);
+        lbl.shadow(false);
+        pill.child(lbl);
+        pill.mouseDown().subscribe((click, doubled) -> {
+            if (click.button() == 0) { onClick.run(); return true; }
+            return false;
+        });
+        return pill;
     }
 
     private String makeLabel(ButtonData btn) {
