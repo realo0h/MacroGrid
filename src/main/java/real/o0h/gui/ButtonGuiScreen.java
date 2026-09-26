@@ -128,7 +128,7 @@ tabBarLayout.margins(Insets.bottom(6));
         // borderless field with light text.
         FlowLayout searchRow = UIContainers.horizontalFlow(
             Sizing.fill(100),
-            Sizing.fixed(16)
+            Sizing.fixed(18)
         );
         searchRow.surface(UITheme.inputStrip());
         searchRow
@@ -143,9 +143,10 @@ tabBarLayout.margins(Insets.bottom(6));
             searchBox.setSuggestion(s.isEmpty() ? "Search..." : "");
             rebuildGrid();
         });
-        FlowLayout clearBtn = makeCard(
-            Component.literal("✕"), UITheme.COL_ACCENT_DIM, false,
-            18, 16, () -> searchBox.setValue(""), null
+        FlowLayout clearBtn = makePill(
+            Component.literal(UITheme.fmt(UITheme.COL_TEXT_DIM) + "✕"),
+            UITheme.COL_TEXT_DIM, 0x18FFFFFF, false,
+            18, () -> searchBox.setValue("")
         );
         searchRow
             .child(searchBox)
@@ -313,12 +314,15 @@ tabBarLayout.margins(Insets.bottom(6));
             );
             editRow.surface(UITheme.inputStrip());
             editRow.verticalAlignment(VerticalAlignment.CENTER);
-            renameField = UIComponents.textBox(Sizing.fill(100));
+            renameField = UIComponents.textBox(Sizing.fill(72));
             renameField.setBordered(false);
             renameField.setTextColor(UITheme.COL_TEXT);
             renameField.setMaxLength(24);
             renameField.setValue(current);
-            renameField.setSuggestion("Profile name");
+            renameField.setSuggestion("");
+            // Select the whole name so typing replaces it instead of appending.
+            renameField.setCursorPosition(renameField.getValue().length());
+            renameField.setHighlightPos(0);
             renameField.onChanged().subscribe(s ->
                 renameField.setSuggestion(s.isEmpty() ? "Profile name" : "")
             );
@@ -592,7 +596,44 @@ tabBarLayout.margins(Insets.bottom(6));
             }
         }
         sb.append(btn.getName());
-        return sb.toString();
+        return clipToWidth(sb.toString(), 88);
+    }
+
+    /**
+     * Clip text to a max pixel width so long button names do not overflow
+     * the button. Works on visible characters while preserving the § format
+     * codes attached to each character, and appends an ellipsis. The full
+     * name is still shown in the button tooltip.
+     */
+    private String clipToWidth(String text, int maxWidth) {
+        var font = Minecraft.getInstance().font;
+        if (font.width(Component.literal(text)) <= maxWidth) return text;
+
+        // Split into visible chars, each carrying its leading format codes.
+        java.util.List<String> pieces = new java.util.ArrayList<>();
+        StringBuilder codes = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '§' && i + 1 < text.length()) {
+                codes.append(c).append(text.charAt(++i));
+                continue;
+            }
+            pieces.add(codes.toString() + c);
+            codes.setLength(0);
+        }
+
+        StringBuilder acc = new StringBuilder();
+        StringBuilder kept = new StringBuilder();
+        String lastCodes = "";
+        for (String piece : pieces) {
+            int codeEnd = 0;
+            while (codeEnd + 1 < piece.length() && piece.charAt(codeEnd) == '§') codeEnd += 2;
+            lastCodes = piece.substring(0, codeEnd);
+            acc.append(piece);
+            if (font.width(Component.literal(acc.toString())) > maxWidth) break;
+            kept.append(piece);
+        }
+        return kept + lastCodes + "…";
     }
 
     private List<Component> makeTooltip(ButtonData btn) {

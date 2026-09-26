@@ -121,18 +121,24 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
             Sizing.fixed(320),
             Sizing.content()
         );
-        panel.surface(UITheme.panel()).padding(Insets.of(8));
+        panel.surface(UITheme.panel()).padding(Insets.of(5));
 
-        panel.child(
+        FlowLayout titleWrap = UIContainers.horizontalFlow(
+            Sizing.fill(100),
+            Sizing.content()
+        );
+        titleWrap.horizontalAlignment(HorizontalAlignment.CENTER);
+        titleWrap.child(
             UIComponents.label(
                 Component.literal(
-                    isAddMode ? "▶  Add New Button" : "▶  Edit Button"
+                    isAddMode ? "Add New Button" : "Edit Button"
                 ).withStyle(ChatFormatting.BOLD)
-            ).color(Color.ofArgb(UITheme.COL_TEXT)).margins(Insets.bottom(8))
+            ).color(Color.ofArgb(UITheme.COL_TEXT))
         );
+        titleWrap.margins(Insets.bottom(4));
+        panel.child(titleWrap);
 
         FlowLayout nameCard = card();
-        nameCard.child(cardHeader("Name"));
 
         // 3.4-style name field: dark strip + top hairline, borderless text.
         FlowLayout nameStrip = UIContainers.horizontalFlow(
@@ -158,13 +164,12 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
         panel.child(nameCard);
 
         FlowLayout appearCard = card();
-        appearCard.child(cardHeader("Appearance"));
 
         FlowLayout colorIconRow = UIContainers.horizontalFlow(
             Sizing.fill(100),
             Sizing.content()
         );
-        colorIconRow.gap(4).margins(Insets.bottom(6));
+        colorIconRow.gap(4).margins(Insets.bottom(3));
 
         FlowLayout colorButton = clickableCard(
             Component.literal(colorLabel()), UITheme.COL_ACCENT_DIM, PAIR_BTN,
@@ -187,7 +192,7 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
         );
         previewBox
             .surface(UITheme.inputStrip())
-            .padding(Insets.of(5))
+            .padding(Insets.of(4))
             .verticalAlignment(VerticalAlignment.CENTER);
         previewBox.child(
             UIComponents.label(
@@ -202,18 +207,21 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
         panel.child(appearCard);
 
         FlowLayout actionsCard = card();
-        actionsCard.child(cardHeader("Actions"));
+        actionsCard.child(cardHeader("Commands"));
 
         commandListLayout = UIContainers.verticalFlow(
             Sizing.fill(100),
             Sizing.content()
         );
+        // Compact command list area: fits ~3 rows on screen, scrollbar visible.
         var scroll = UIContainers.verticalScroll(
             Sizing.fill(100),
-            Sizing.fixed(90),
+            Sizing.fixed(66),
             commandListLayout
         );
-        scroll.margins(Insets.bottom(6));
+        scroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
+        scroll.scrollbarThiccness(5);
+        scroll.margins(Insets.bottom(3));
         actionsCard.child(scroll);
 
         FlowLayout addCmdRow = UIContainers.horizontalFlow(
@@ -275,28 +283,17 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
         saveRow.child(saveBtn).child(cancelBtn);
         panel.child(saveRow);
 
-        // ---- Old full-screen scroll (kept commented out for reference) ----
-        // var mainScroll = UIContainers.verticalScroll(
-        //     Sizing.fill(100),
+        // Panel is centered by the root layout itself; no outer scroll wrapper,
+        // so the window stays fixed in the middle of the screen.
+        // ---- Scrollable wrapper (kept commented out for reference) ----
+        // var mainScroll = new DragScrollContainer<>(
+        //     ScrollContainer.ScrollDirection.VERTICAL,
+        //     Sizing.fixed(320),
         //     Sizing.fill(100),
         //     panel
         // );
         // root.child(mainScroll);
-
-        // Scrollable panel: supports mouse-wheel AND click-and-drag scrolling,
-        // keeps the panel centered (not stretched over the whole screen).
-        // Use a clearly visible vanilla-style scrollbar instead of the default
-        // near-invisible dark one, and make it a bit thicker.
-        var mainScroll = new DragScrollContainer<>(
-            ScrollContainer.ScrollDirection.VERTICAL,
-            Sizing.fixed(320),
-            Sizing.fill(100),
-            panel
-        );
-        mainScroll
-            .scrollbar(ScrollContainer.Scrollbar.vanillaFlat())
-            .scrollbarThiccness(5);
-        root.child(mainScroll);
+        root.child(panel);
         rebuildCommandList();
         updatePreview();
     }
@@ -307,16 +304,16 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
             Sizing.content()
         );
         card.surface(UITheme.subCard())
-            .padding(Insets.of(6))
-            .margins(Insets.bottom(6));
+            .padding(Insets.of(4))
+            .margins(Insets.bottom(4));
         return card;
     }
 
     private static LabelComponent cardHeader(String text) {
         LabelComponent label = UIComponents.label(
-            Component.literal(text + " ─")
+            Component.literal(text)
         );
-        label.color(Color.ofArgb(UITheme.COL_TEXT_DIM)).margins(Insets.bottom(4));
+        label.color(Color.ofArgb(UITheme.COL_TEXT_DIM)).margins(Insets.bottom(2));
         return label;
     }
 
@@ -383,16 +380,16 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
     private String colorLabel() {
         if (
             currentColor == ButtonData.ButtonColor.DEFAULT
-        ) return "§7Color  ·  Default";
-        return "Color  ·  " + currentColor.getDisplayName();
+        ) return "§7Color: Default";
+        return "Color: " + currentColor.getDisplayName();
     }
 
     private String iconLabel() {
         if (
             currentIcon == null || currentIcon == ButtonData.ButtonIcon.NONE
-        ) return "§7Icon  ·  None";
+        ) return "§7Icon: None";
         return (
-            "Icon  ·  " + currentIcon.getSymbol() + "  " + currentIcon.getName()
+            "Icon: " + currentIcon.getSymbol() + "  " + currentIcon.getName()
         );
     }
 
@@ -430,7 +427,7 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
             );
             rowWrap
                 .surface(Surface.flat(accentDim))
-                .padding(Insets.of(3))
+                .padding(Insets.of(2))
                 .margins(Insets.bottom(2));
 
             FlowLayout row = UIContainers.horizontalFlow(
@@ -441,7 +438,7 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
 
             FlowLayout typeBtn = clickablePill(
                 Component.literal(UITheme.fmt(accent) + (isCmd ? "CMD" : "MSG")),
-                accent, accentDim, false, 36, () -> {
+                accent, accentDim, false, 34, () -> {
                     cw.type = isCmd
                         ? ButtonData.CommandType.MESSAGE
                         : ButtonData.CommandType.COMMAND;
@@ -464,7 +461,7 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
 
             FlowLayout upBtn = clickablePill(
                 Component.literal("↑"),
-                UITheme.COL_TEXT_DIM, 0x18FFFFFF, false, 16, () -> {
+                UITheme.COL_TEXT_DIM, 0x18FFFFFF, false, 14, () -> {
                     if (idx > 0) {
                         CommandWidget tmp = commandWidgets.get(idx);
                         commandWidgets.set(idx, commandWidgets.get(idx - 1));
@@ -477,7 +474,7 @@ public class EditButtonScreen extends BaseOwoScreen<FlowLayout> {
 
             FlowLayout downBtn = clickablePill(
                 Component.literal("↓"),
-                UITheme.COL_TEXT_DIM, 0x18FFFFFF, false, 16, () -> {
+                UITheme.COL_TEXT_DIM, 0x18FFFFFF, false, 14, () -> {
                     if (idx < commandWidgets.size() - 1) {
                         CommandWidget tmp = commandWidgets.get(idx);
                         commandWidgets.set(idx, commandWidgets.get(idx + 1));
